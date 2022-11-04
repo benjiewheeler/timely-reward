@@ -1,0 +1,38 @@
+{
+	"name": "timelyreward",
+	"version": "1.0.0",
+	"description": "Configurable Time-locked rewards smart contract for Antelope-based chains",
+	"main": "index.js",
+	"scripts": {
+		"build:dev": "cd contract; blanc++ -I include src/timelyreward.cpp",
+		"build:prod": "cd contract; cdt-cpp -I include src/timelyreward.cpp",
+		"test": "mocha -s 250 -r ts-node/register tests/**/*.spec.ts"
+	},
+	"keywords": [
+		"contract",
+		"reward",
+		"smart",
+		"token",
+		"unlock"
+	],
+	"author": {
+		"name": "Benjie",
+		"email": "benjiewheeler@protonmail.com",
+		"url": "https://github.com/benjiewheeler"
+	},
+	"license": "MIT",
+	"devDependencies": {
+		"@greymass/eosio": "~0.5.5",
+		"@proton/vert": "^0.3.21",
+		"@types/chai": "^4.3.3",
+		"@types/chai-as-promised": "^7.1.5",
+		"@types/mocha": "^9.1.1",
+		"@types/node": "^18.11.9",
+		"chai": "^4.3.6",
+		"chai-as-promised": "^7.1.1",
+		"mocha": "^10.1.0",
+		"proton-tsc": "^0.3.58",
+		"ts-node": "^10.9.1",
+		"typescript": "^4.8.4"
+	}
+}
