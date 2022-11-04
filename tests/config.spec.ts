@@ -1,4 +1,5 @@
-import { Blockchain, mintTokens, nameToBigInt } from "@proton/vert";
+import { TimePointSec } from "@greymass/eosio";
+import { Blockchain, mintTokens } from "@proton/vert";
 import chai, { assert } from "chai";
 import chaiAsPromised from "chai-as-promised";
 
@@ -21,15 +22,15 @@ describe("config", () => {
 			blockchain.resetTables();
 		});
 
-		it("require contract auth", () => {
-			return assert.isRejected(
+		it("require contract auth", async () => {
+			await assert.isRejected(
 				timelyRewardContract.actions.setpaused([true]).send("alice@active"),
 				"this action is restricted to admin only"
 			);
 		});
 
-		it("pause the contract", () => {
-			return assert.isFulfilled(timelyRewardContract.actions.setpaused([true]).send());
+		it("pause the contract", async () => {
+			await assert.isFulfilled(timelyRewardContract.actions.setpaused([true]).send());
 		});
 
 		it("config table paused=true", async () => {
@@ -38,8 +39,8 @@ describe("config", () => {
 			assert.deepEqual(rows, [{ ...DEFAULT_CONFIG_ROW, paused: true }]);
 		});
 
-		it("unpause the contract", () => {
-			return assert.isFulfilled(timelyRewardContract.actions.setpaused([false]).send());
+		it("unpause the contract", async () => {
+			await assert.isFulfilled(timelyRewardContract.actions.setpaused([false]).send());
 		});
 
 		it("config table paused=false", async () => {
@@ -60,8 +61,8 @@ describe("config", () => {
 			await timelyRewardContract.actions.setpaused([false]).send();
 		});
 
-		it("require contract auth", () => {
-			return assert.isRejected(
+		it("require contract auth", async () => {
+			await assert.isRejected(
 				timelyRewardContract.actions.settoken(["eosio.token", "8,WAX"]).send("alice@active"),
 				"this action is restricted to admin only"
 			);
@@ -73,7 +74,7 @@ describe("config", () => {
 		});
 
 		it("set the config", async () => {
-			return assert.isFulfilled(timelyRewardContract.actions.settoken(["test.token", "8,BTC"]).send());
+			await assert.isFulfilled(timelyRewardContract.actions.settoken(["test.token", "8,BTC"]).send());
 		});
 
 		it("config after setting the token", async () => {
@@ -81,16 +82,90 @@ describe("config", () => {
 			assert.deepEqual(rows, [{ ...DEFAULT_CONFIG_ROW, token_contract: "test.token", token_symbol: "8,BTC" }]);
 		});
 
-		it("disallow non-existing contracts", () => {
-			return assert.isRejected(timelyRewardContract.actions.settoken(["dummy", "8,WAX"]).send(), "contract account does not exist");
+		it("disallow non-existing contracts", async () => {
+			await assert.isRejected(timelyRewardContract.actions.settoken(["dummy", "8,WAX"]).send(), "contract account does not exist");
 		});
 
-		it("disallow non-token contracts", () => {
-			return assert.isRejected(timelyRewardContract.actions.settoken(["alice", "8,WAX"]).send(), "token symbol does not exist");
+		it("disallow non-token contracts", async () => {
+			await assert.isRejected(timelyRewardContract.actions.settoken(["alice", "8,WAX"]).send(), "token symbol does not exist");
 		});
 
-		it("disallow non-existing tokens", () => {
-			return assert.isRejected(timelyRewardContract.actions.settoken(["test.token", "4,EOS"]).send(), "token symbol does not exist");
+		it("disallow non-existing tokens", async () => {
+			await assert.isRejected(timelyRewardContract.actions.settoken(["test.token", "4,EOS"]).send(), "token symbol does not exist");
+		});
+	});
+
+	describe("add users", () => {
+		before(async () => {
+			blockchain.resetTables();
+
+			// set the blockchain time
+			blockchain.setTime(TimePointSec.fromDate(new Date("2022-01-01T00:00:00.000Z")));
+
+			// unpause the contract; just to populate the config table
+			await timelyRewardContract.actions.setpaused([false]).send();
+		});
+
+		it("require contract auth", async () => {
+			await assert.isRejected(
+				timelyRewardContract.actions
+					.addreward([[alice.name.toString()], "1000.00000000 WAX", "2022-01-02T00:00:00", 7])
+					.send("alice@active"),
+				"this action is restricted to admin only"
+			);
+		});
+
+		it("reject empty recipients list", async () => {
+			await assert.isRejected(
+				timelyRewardContract.actions.addreward([[], "1000.00000000 WAX", "2022-01-02T00:00:00", 7]).send(),
+				"you must add at least 1 reward recipient"
+			);
+		});
+
+		it("reject invalid quantity", async () => {
+			await assert.isRejected(
+				timelyRewardContract.actions.addreward([[alice.name.toString()], "46116860200.00000000 WAX", "2022-01-02T00:00:00", 7]).send(),
+				"invalid quantity"
+			);
+
+			await assert.isRejected(
+				timelyRewardContract.actions.addreward([[alice.name.toString()], "-10.00000000 WAX", "2022-01-02T00:00:00", 7]).send(),
+				"quantity amount must be positive"
+			);
+		});
+
+		it("reject unlock start in the past", async () => {
+			await assert.isRejected(
+				timelyRewardContract.actions.addreward([[alice.name.toString()], "1000.00000000 WAX", "2020-01-02T00:00:00", 7]).send(),
+				"unlock start must be in the future"
+			);
+		});
+
+		it("reject invalid unlock", async () => {
+			await assert.isRejected(
+				timelyRewardContract.actions.addreward([[alice.name.toString()], "1000.00000000 WAX", "2022-01-02T00:00:00", 0]).send(),
+				"unlock period must be a positive integer"
+			);
+		});
+
+		it("reject mismatched token symbol", async () => {
+			await assert.isRejected(
+				timelyRewardContract.actions.addreward([[alice.name.toString()], "1000.0000 TLM", "2022-01-02T00:00:00", 7]).send(),
+				"token symbol mismatch"
+			);
+		});
+
+		it("add alice to receive rewards", async () => {
+			await assert.isFulfilled(
+				timelyRewardContract.actions.addreward([[alice.name.toString()], "1000.00000000 WAX", "2022-01-02T00:00:00", 7]).send()
+			);
+		});
+
+		it("reject adding duplicate user", async () => {
+			await assert.isRejected(
+				timelyRewardContract.actions.addreward([[alice.name.toString()], "1000.00000000 WAX", "2022-01-02T00:00:00", 7]).send(),
+				"recipient (" + alice.name.toString() + ") already has rewards configured"
+			);
 		});
 	});
 });
