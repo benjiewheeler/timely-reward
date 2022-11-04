@@ -7,7 +7,7 @@ chai.use(chaiAsPromised);
 
 const blockchain = new Blockchain();
 const [alice, bob] = blockchain.createAccounts("alice", "bob");
-const timelyRewardContract = blockchain.createContract("ezstake", "contract/timelyreward");
+const timelyRewardContract = blockchain.createContract("timelyreward", "contract/timelyreward");
 const testTokenContract = blockchain.createContract("test.token", "node_modules/proton-tsc/external/eosio.token/eosio.token");
 
 const DEFAULT_CONFIG_ROW = {
