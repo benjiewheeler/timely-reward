@@ -88,13 +88,73 @@ ACTION timelyreward::addreward(const std::vector<name>& recipients, const asset&
             check(false, std ::string("recipient (" + user.to_string() + ") already has rewards configured").c_str());
         }
 
+        // calculate daily rate
+        const auto& daily_rate = asset(quantity.amount / unlock_days, quantity.symbol);
+
         // add the rewards row to the table
         rewards_tbl.emplace(get_self(), [&](rewards_s& row) {
             row.user = user;
             row.remaining_rewards = quantity;
             row.unlock_start = unlock_start;
-            row.unlock_days = unlock_days;
+            row.daily_rate = daily_rate;
             row.last_claim = unlock_start;
         });
     }
+}
+
+ACTION timelyreward::claim(const name& user)
+{
+    // check user auth
+    if (!has_auth(user)) {
+        check(false, std::string("user (" + user.to_string() + ") has not authorized this action").c_str());
+    }
+
+    // get config table instance
+    config_t conf_tbl(get_self(), get_self().value);
+
+    // check if the contract is initialized
+    check(conf_tbl.exists(), "smart contract hasn't been initialized yet");
+
+    // get current config
+    auto conf = conf_tbl.get();
+
+    // check if the contract is not paused
+    check(!conf.paused, "the contract is currently paused");
+
+    // get the rewards table instance
+    rewards_t rewards_tbl(get_self(), get_self().value);
+
+    // check if the user has any rewards configured
+    const auto& user_itr = rewards_tbl.find(user.value);
+
+    if (user_itr == rewards_tbl.end()) {
+        check(false, std ::string("user (" + user.to_string() + ") has no rewards to claim").c_str());
+    }
+
+    // check if the user's rewards are unlocked yet
+    if (user_itr->unlock_start > current_time_point()) {
+        check(false, std ::string("rewards for user (" + user.to_string() + ") are not unlocked yet").c_str());
+    }
+
+    // calculate unlocked rewards since last claim
+    const auto& diff_sec = current_time_point().sec_since_epoch() - user_itr->last_claim.sec_since_epoch();
+    const auto& unlocked_amount = std::min((diff_sec * user_itr->daily_rate.amount) / 86400, user_itr->remaining_rewards.amount);
+    const auto& unlocked_reward = asset(unlocked_amount, user_itr->remaining_rewards.symbol);
+
+    // erase the row if the user claimed all their rewards
+    if (unlocked_reward == user_itr->remaining_rewards) {
+        rewards_tbl.erase(user_itr);
+    }
+    // deduct the rewarded amount and update the last claim time
+    else {
+        rewards_tbl.modify(user_itr, same_payer, [&](rewards_s& row) {
+            row.remaining_rewards -= unlocked_reward;
+            row.last_claim = current_time_point();
+        });
+    }
+
+    // send the tokens to the user
+    action(permission_level { get_self(), name("active") }, conf.token_contract, name("transfer"),
+        std::make_tuple(get_self(), user, unlocked_reward, std::string("Unlocked reward")))
+        .send();
 }

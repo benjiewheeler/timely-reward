@@ -20,6 +20,11 @@ public:
     // configure a new reward for the specified users
     ACTION addreward(const std::vector<name>& recipients, const asset& quantity, const time_point_sec& unlock_start, const uint16_t unlock_days);
 
+    // ------------ user actions ------------
+
+    // claim the rewards unlocked so far
+    ACTION claim(const name& user);
+
 private:
     // token stat struct
     // taken from the reference eosio.token contract
@@ -43,7 +48,7 @@ private:
         name user;
         asset remaining_rewards;
         time_point_sec unlock_start;
-        uint16_t unlock_days;
+        asset daily_rate;
         time_point_sec last_claim;
 
         uint64_t primary_key() const { return user.value; }
