@@ -6,7 +6,7 @@ This contract is useful for rewarding users/team members with tokens by slowly u
 
 This contract is designed to work out-of-the-box, without the need to modify the source code.
 
-All the main features are fully configurable by the contract owner.
+All the main features are configurable by the contract owner.
 
 ## Features
 
@@ -45,6 +45,35 @@ cleos -u <your_api_endpoint> set contract <account> $PWD contract/timelyreward.w
 # dont forget to add eosio.code permission
 cleos -u <your_api_endpoint> set account permission <account> active --add-code
 ```
+
+## Usage
+
+#### For admin
+
+After deploying the contract call the following actions:
+
+1.  `setpaused` with argument `paused: false` (used in this instance just to initiate the config table)
+
+| Parameter | Type      | Description                           |
+| --------- | --------- | ------------------------------------- |
+| `paused`  | `boolean` | Whether the contract is paused or not |
+
+2. `settoken`
+
+| Parameter      | Type             | Description                                       |
+| -------------- | ---------------- | ------------------------------------------------- |
+| `recipients`   | `name[]`         | Account names of the recipients                   |
+| `quantity`     | `asset`          | The token quantity each recipient will get        |
+| `unlock_start` | `time_point_sec` | Timestamp of when the rewards should unlock       |
+| `unlock_days`  | `uint16`         | Number of days until all the rewards are unlocked |
+
+#### For users
+
+-   `claim`
+
+| Parameter | Type   | Description                       |
+| --------- | ------ | --------------------------------- |
+| `user`    | `name` | Account name of the claiming user |
 
 ## Want more features ?
 
